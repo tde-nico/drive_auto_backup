@@ -1,5 +1,6 @@
 # Directories
 backup/
+__pycache__
 
 # Files
 *.json
