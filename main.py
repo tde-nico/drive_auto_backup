@@ -18,9 +18,9 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 CREDENTIALS = "credentials.json"
 
 LOCAL_FOLDER = "backup"
-DRIVE_FOLDER = "Backup_2022"
 
 DELAY = 10
+
 
 def get_creds():
 	creds = None
@@ -38,14 +38,14 @@ def get_creds():
 	return creds
 
 
-def get_folder_id(service):
+def get_folder_id(service, folder):
 	responce = service.files().list(
-		q="name='" + DRIVE_FOLDER + "' and mimeType='application/vnd.google-apps.folder'",
+		q="name='" + folder + "' and mimeType='application/vnd.google-apps.folder'",
 		spaces="drive"
 	).execute()
 	if not responce['files']:
 		file_metadata = {
-			"name": DRIVE_FOLDER,
+			"name": folder,
 			"mimeType": "application/vnd.google-apps.folder"
 		}
 		file = service.files().create(body=file_metadata, fields="id").execute()
@@ -53,26 +53,26 @@ def get_folder_id(service):
 	return responce["files"][0]["id"]
 
 
-def upload_file(service, folder_id, file):
+def upload_file(service, folder, folder_id, file):
 	file_metadata = {
 		"name": file,
 		"parents": [folder_id],
 	}
-	media = MediaFileUpload(f"{LOCAL_FOLDER}/{file}")
-	upload_file = service.files().create(
+	media = MediaFileUpload(f"{folder}/{file}")
+	uploaded_file = service.files().create(
 		body=file_metadata,
 		media_body=media,
 		fields="id"
 	).execute()
 
 
-def update_file(service, data):
+def update_file(service, folder, data):
 	name = data[0]["name"]
 	file_metadata = {
 		"name": name,
 	}
-	media = MediaFileUpload(f"{LOCAL_FOLDER}/{name}")
-	update_file = service.files().update(
+	media = MediaFileUpload(f"{folder}/{name}")
+	updated_file = service.files().update(
 		body=file_metadata,
 		media_body=media,
 		fileId=data[0]["id"]
@@ -91,8 +91,9 @@ def check_presence(service, file):
 
 
 class Handler(FileSystemEventHandler):
-	def __init__(self, service, folder_id):
+	def __init__(self, service, folder, folder_id):
 		self.service = service
+		self.folder = folder
 		self.folder_id = folder_id
 		self.modified_files = set()
 		self.timer = 0
@@ -103,10 +104,10 @@ class Handler(FileSystemEventHandler):
 			try:
 				responce = check_presence(self.service, file)
 				if not responce:
-					upload_file(self.service, self.folder_id, file)
+					upload_file(self.service, self.folder, self.folder_id, file)
 					print("Backed up file: " + file)
 				else:
-					update_file(self.service, responce)
+					update_file(self.service, self.folder, responce)
 					print("Updated up file: " + file)
 			except HttpError as e:
 				print("Error:" + str(e))
@@ -115,9 +116,13 @@ class Handler(FileSystemEventHandler):
 
 
 	def on_any_event(self, event):
-		if event.event_type not in ("created", "modified"):
+		print(event)
+		if event.event_type not in ("created", "modified", "moved"):
 			return
-		file = event.src_path[len(LOCAL_FOLDER)+1:]
+		if event.is_directory:
+			print("dir")
+			return
+		file = event.src_path[len(self.folder)+1:]
 		self.modified_files.add(file)
 		if self.timer:
 			return
@@ -127,13 +132,13 @@ class Handler(FileSystemEventHandler):
 
 
 
-def main():
+def main(folder):
 	creds = get_creds()
 	try:
 		service = build("drive", "v3", credentials=creds)
-		folder_id = get_folder_id(service)
+		folder_id = get_folder_id(service, folder)
 		observer = Observer()
-		observer.schedule(Handler(service, folder_id), LOCAL_FOLDER)
+		observer.schedule(Handler(service, folder, folder_id), folder)
 		observer.start()
 		try:
 			while True:
@@ -147,4 +152,4 @@ def main():
 
 
 if __name__ == "__main__":
-	main()
+	main(LOCAL_FOLDER)

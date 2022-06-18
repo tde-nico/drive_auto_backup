@@ -1,0 +1,5 @@
+# Directories
+backup/
+
+# Files
+*.json
