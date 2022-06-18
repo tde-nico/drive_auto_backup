@@ -31,7 +31,7 @@ def get_folder_id(service, folder, parents=None):
 			file_metadata["parents"] = parents
 		file = service.files().create(body=file_metadata, fields="id").execute()
 		if VERBOSE_LEVEL:
-			print(f"Created: {folder} folder")
+			print(f"Created folder: {folder}")
 		return file.get("id")
 	return responce["files"][0]["id"]
 

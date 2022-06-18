@@ -14,21 +14,45 @@ class Handler(FileSystemEventHandler):
 		self.sub_pids = []
 		self.timer = 0
 
+		self.sub_folders = dict()
+
+
+	def create_folder(self, path, file):
+		#print(self.sub_folders)
+		if file in self.sub_folders.keys() or not path:
+			return
+		parents = None
+		folders = path.split("\\")
+		#print(path, file)
+		if len(folders):
+			self.create_folder("\\".join(folders[:-1]), folders[-1])
+			parents = [get_folder_id(self.service, folders[-1])]
+		#print(file, parents)
+		folder_id = get_folder_id(self.service, file, parents)
+		#print(folder_id)
+		self.sub_folders[file] = {"id": folder_id, "parents": parents}
+
 
 	def push(self, *args):
-		for file in self.modified_files:
+		for file_path in self.modified_files:
 			try:
+				folders = file_path.split("\\")
+				current_folder_path = "/".join(folders[:-1])
+				self.create_folder("\\".join(folders[:-2]), folders[-2])
+				parent = self.sub_folders.get(folders[-2], get_folder_id(self.service, folders[-2])).get("id")
+				file = folders[-1]
 				responce = check_presence(self.service, file)
 				if not responce:
-					upload_file(self.service, self.folder_path, self.folder_id, file)
+					upload_file(self.service, current_folder_path, parent, file)
 					if VERBOSE_LEVEL:
 						print("Backed up file: " + file)
 				else:
-					update_file(self.service, self.folder_path, responce)
+					update_file(self.service, current_folder_path, responce)
 					if VERBOSE_LEVEL:
-						print("Updated up file: " + file)
+						print("Updated file: " + file)
 			except HttpError as e:
-				print("Error:" + str(e))
+				if VERBOSE_LEVEL:
+					print("Error:" + str(e))
 		self.modified_files.clear()
 		self.timer = 0
 
@@ -40,13 +64,18 @@ class Handler(FileSystemEventHandler):
 			return
 		file = event.src_path[len(self.folder_path)+1:]
 		if event.is_directory:
-			if file in self.ignored_folders:
+			if event.event_type == "modified":
 				return
-			self.ignored_folders.add(file)
-			main = os.getcwd() + "/main.py"
-			self.sub_pids.append(subprocess.Popen(f"{PYTHON_ALIAS} {main} {event.src_path}", shell=True).pid)
+			self.create_folder(event.src_path, file)
 			return
-		self.modified_files.add(file)
+		#if event.is_directory:
+			#if file in self.ignored_folders:
+			#	return
+			#self.ignored_folders.add(file)
+			#main = os.getcwd() + "/main.py"
+			#self.sub_pids.append(subprocess.Popen(f"{PYTHON_ALIAS} {main} {event.src_path}", shell=True).pid)
+		#	return
+		self.modified_files.add(event.src_path)
 		if self.timer:
 			return
 		t = Timer(DELAY, self.push, [DELAY])

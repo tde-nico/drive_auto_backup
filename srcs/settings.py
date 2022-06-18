@@ -21,10 +21,13 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 CREDENTIALS = "credentials.json"
 
 PYTHON_ALIAS = "py"
+# alias for python: like py, python, python3 ...
 
 LOCAL_FOLDER = "backup"
+# folder to track
 
 DELAY = 10
+# delay between the event and the backup
 
 VERBOSE_LEVEL = 3
 # level 0 = no verbose

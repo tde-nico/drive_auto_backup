@@ -27,3 +27,8 @@ until it prints "The authentication flow has completed. You may close this windo
 
 Now by closing the tab you'll find an "HttpError 403", visit the link reported in the error, in order to enable the source 
 (you will recive the "token.json" file) and after a few minutes you should be able to get the script working.
+
+
+## Note
+
+The files that are moved to trash from the drive mush be deleted.

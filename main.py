@@ -25,7 +25,7 @@ def main(folder_path):
 		folder_id = get_folder_id(service, folder, parents)
 		observer = Observer()
 		handler = Handler(service, folder_path, folder_id)
-		observer.schedule(handler, folder_path)
+		observer.schedule(handler, folder_path, recursive=True)
 		observer.start()
 
 		try:
