@@ -1,6 +1,9 @@
 import os
 import os.path
 import time
+import subprocess
+import signal
+import sys
 from threading import Timer
 
 from google.auth.transport.requests import Request
@@ -17,23 +20,32 @@ from watchdog.events import FileSystemEventHandler
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 CREDENTIALS = "credentials.json"
 
+PYTHON_ALIAS = "py"
+
+CURRENT_FOLDER = os.getcwd()
 LOCAL_FOLDER = "backup"
 
 DELAY = 10
 
 
+def signal_handler(sig, frame):
+	print("CTRL + C")
+	raise KeyboardInterrupt()
+
+
+
 def get_creds():
 	creds = None
-	if os.path.exists("token.json"):
-		creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+	if os.path.exists(f"{CURRENT_FOLDER}/token.json"):
+		creds = Credentials.from_authorized_user_file(f"{CURRENT_FOLDER}/token.json", SCOPES)
 	if not creds or not creds.valid:
 		if creds and creds.expired and creds.refresh_token:
 			creds.refresh(Request())
 		else:
 			flow = InstalledAppFlow.from_client_secrets_file(
-				CREDENTIALS, SCOPES)
+				f"{CURRENT_FOLDER}/{CREDENTIALS}", SCOPES)
 			creds = flow.run_local_server(port=0)
-		with open("token.json", "w") as token:
+		with open(f"{CURRENT_FOLDER}/token.json", "w") as token:
 			token.write(creds.to_json())
 	return creds
 
@@ -96,6 +108,8 @@ class Handler(FileSystemEventHandler):
 		self.folder = folder
 		self.folder_id = folder_id
 		self.modified_files = set()
+		self.ignored_folders = set()
+		self.sub_pids = []
 		self.timer = 0
 
 
@@ -116,13 +130,16 @@ class Handler(FileSystemEventHandler):
 
 
 	def on_any_event(self, event):
-		print(event)
+		print(f"{self.folder}: {event}")
 		if event.event_type not in ("created", "modified", "moved"):
 			return
-		if event.is_directory:
-			print("dir")
-			return
 		file = event.src_path[len(self.folder)+1:]
+		if event.is_directory:
+			if file in self.ignored_folders:
+				return
+			self.ignored_folders.add(file)
+			self.sub_pids.append(subprocess.Popen(f"{PYTHON_ALIAS} {__file__} {event.src_path}", shell=True).pid)
+			return
 		self.modified_files.add(file)
 		if self.timer:
 			return
@@ -131,25 +148,44 @@ class Handler(FileSystemEventHandler):
 		self.timer = 1
 
 
+	def stop_sub_processes(self):
+		for sub_prcss in self.sub_pids:
+			os.kill(sub_prcss, signal.SIGINT)
+
+
 
 def main(folder):
+	signal.signal(signal.SIGINT, signal_handler)
 	creds = get_creds()
 	try:
 		service = build("drive", "v3", credentials=creds)
 		folder_id = get_folder_id(service, folder)
 		observer = Observer()
-		observer.schedule(Handler(service, folder, folder_id), folder)
+		handler = Handler(service, folder, folder_id)
+		observer.schedule(handler, folder)
 		observer.start()
 		try:
 			while True:
 				time.sleep(1)
 		except KeyboardInterrupt:
+			handler.stop_sub_processes()
 			observer.stop()
 		observer.join()
 	except HttpError as e:
 		print("Error:" + str(e))
-	
+
+
+
 
 
 if __name__ == "__main__":
+	if len(sys.argv) > 1:
+		LOCAL_FOLDER = sys.argv[1]
+		print(f"{LOCAL_FOLDER}: Start")
+		os.chdir(LOCAL_FOLDER)
+		os.chdir("..")
+		LOCAL_FOLDER = LOCAL_FOLDER.split("\\")[-1]
+	else:
+		print(f"{LOCAL_FOLDER}: Start")
 	main(LOCAL_FOLDER)
+	print(f"{LOCAL_FOLDER}: Stop")
