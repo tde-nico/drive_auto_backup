@@ -20,11 +20,8 @@ from watchdog.events import FileSystemEventHandler
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 CREDENTIALS = "credentials.json"
 
-PYTHON_ALIAS = "py"
-# alias for python: like py, python, python3 ...
-
-LOCAL_FOLDER = "backup"
-# folder to track
+FOLDERS = ["backup_1", "backup_2"]
+# folders to track
 
 DELAY = 10
 # delay between the event and the backup
