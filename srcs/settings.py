@@ -19,6 +19,7 @@ from watchdog.events import FileSystemEventHandler
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 CREDENTIALS = "credentials.json"
+TOKEN = "token.json"
 
 FOLDERS = ["backup_1", "backup_2"]
 # folders to track
