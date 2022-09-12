@@ -2,7 +2,6 @@
 
 <!--
 #groups
-Finance
 
 #languages
 Python
